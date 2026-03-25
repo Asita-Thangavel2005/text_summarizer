@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Text Summarizer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            min-height: 100vh;
+            color: white;
+            padding: 30px 20px;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 {
+            text-align: center;
+            font-size: 2.8em;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #a18cd1, #fbc2eb);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle {
+            text-align: center;
+            color: #aaa;
+            margin-bottom: 40px;
+            font-size: 1.1em;
+        }
+        .card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 25px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        label {
+            display: block;
+            margin-bottom: 10px;
+            color: #a18cd1;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 12px;
+            padding: 15px;
+            color: white;
+            font-size: 1em;
+            resize: vertical;
+            font-family: inherit;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #a18cd1;
+        }
+        textarea::placeholder { color: #666; }
+        .word-count {
+            text-align: right;
+            color: #666;
+            margin-top: 8px;
+            font-size: 0.9em;
+        }
+        .btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(90deg, #a18cd1, #fbc2eb);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 1.2em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, opacity 0.2s;
+            margin-top: 15px;
+        }
+        .btn:hover { transform: scale(1.02); opacity: 0.9; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #a18cd1;
+            font-size: 1.1em;
+        }
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(161,140,209,0.3);
+            border-top-color: #a18cd1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .results { display: none; }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-box {
+            background: rgba(161,140,209,0.1);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid rgba(161,140,209,0.2);
+        }
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            background: linear-gradient(90deg, #a18cd1, #fbc2eb);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .stat-label { color: #aaa; font-size: 0.9em; margin-top: 5px; }
+        .summary-box {
+            background: rgba(161,140,209,0.1);
+            border-radius: 12px;
+            padding: 25px;
+            border-left: 4px solid #a18cd1;
+            line-height: 1.8;
+            font-size: 1.05em;
+        }
+        .error {
+            background: rgba(255,65,108,0.1);
+            border: 1px solid #ff416c;
+            border-radius: 12px;
+            padding: 15px;
+            color: #ff416c;
+            display: none;
+            margin-top: 15px;
+        }
+        .copy-btn {
+            background: transparent;
+            border: 1px solid #a18cd1;
+            color: #a18cd1;
+            padding: 8px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            margin-top: 15px;
+            font-size: 0.9em;
+            transition: all 0.2s;
+        }
+        .copy-btn:hover {
+            background: #a18cd1;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✨ AI Text Summarizer</h1>
+        <p class="subtitle">Paste any long text — AI summarizes it instantly!</p>
+
+        <div class="card">
+            <label>📝 Enter Your Text</label>
+            <textarea
+                id="inputText"
+                placeholder="Paste your article, essay, research paper or any long text here..."
+                oninput="updateWordCount()"
+            ></textarea>
+            <div class="word-count" id="wordCount">0 words</div>
+            <div class="error" id="error"></div>
+            <button class="btn" onclick="summarizeText()" id="btn">
+                ✨ Summarize Now
+            </button>
+        </div>
+
+        <div class="loading" id="loading">
+            <span class="spinner"></span>
+            AI is summarizing your text... Please wait!
+        </div>
+
+        <div class="card results" id="results">
+            <label>📊 Summary Statistics</label>
+            <div class="stats">
+                <div class="stat-box">
+                    <div class="stat-number" id="originalWords">0</div>
+                    <div class="stat-label">Original Words</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number" id="summaryWords">0</div>
+                    <div class="stat-label">Summary Words</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number" id="reduction">0%</div>
+                    <div class="stat-label">Text Reduced</div>
+                </div>
+            </div>
+
+            <label>📄 Your Summary</label>
+            <div class="summary-box" id="summaryText"></div>
+            <button class="copy-btn" onclick="copySummary()">
+                📋 Copy Summary
+            </button>
+        </div>
+    </div>
+
+    <script>
+        function updateWordCount() {
+            const text  = document.getElementById('inputText').value.trim();
+            const words = text ? text.split(/\s+/).length : 0;
+            document.getElementById('wordCount').textContent = words + ' words';
+        }
+
+        async function summarizeText() {
+            const text = document.getElementById('inputText').value.trim();
+
+            if (!text) {
+                showError('Please enter some text first!');
+                return;
+            }
+
+            document.getElementById('btn').disabled     = true;
+            document.getElementById('loading').style.display  = 'block';
+            document.getElementById('results').style.display  = 'none';
+            document.getElementById('error').style.display    = 'none';
+
+            try {
+                const response = await fetch('/summarize', {
+                    method  : 'POST',
+                    headers : { 'Content-Type': 'application/json' },
+                    body    : JSON.stringify({ text })
+                });
+
+                const data = await response.json();
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('btn').disabled          = false;
+
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                document.getElementById('originalWords').textContent = data.original_words;
+                document.getElementById('summaryWords').textContent  = data.summary_words;
+                document.getElementById('reduction').textContent     = data.reduction + '%';
+                document.getElementById('summaryText').textContent   = data.summary;
+                document.getElementById('results').style.display     = 'block';
+
+            } catch (err) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('btn').disabled          = false;
+                showError('Something went wrong. Please try again!');
+            }
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('error');
+            el.textContent    = msg;
+            el.style.display  = 'block';
+        }
+
+        function copySummary() {
+            const text = document.getElementById('summaryText').textContent;
+            navigator.clipboard.writeText(text);
+            const btn      = document.querySelector('.copy-btn');
+            btn.textContent = '✅ Copied!';
+            setTimeout(() => btn.textContent = '📋 Copy Summary', 2000);
+        }
+    </script>
+</body>
+</html>
+
+
+
+
