@@ -1,15 +1,39 @@
 from flask import Flask, render_template, request, jsonify
-from transformers import BartForConditionalGeneration, BartTokenizer
+import requests
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
 
-# Load model at startup
-print("Loading summarization model...")
-model_name = "facebook/bart-large-cnn"
-tokenizer  = BartTokenizer.from_pretrained(model_name)
-model      = BartForConditionalGeneration.from_pretrained(model_name)
-print("Model loaded!")
+# Fixed URL format for new HF router
+HF_API_URL = "https://router.huggingface.co/hf-inference/models/sshleifer/distilbart-cnn-12-6"
+HF_TOKEN   = os.getenv("HF_TOKEN")
+headers    = {
+    "Authorization" : f"Bearer {HF_TOKEN}",
+    "Content-Type"  : "application/json"
+}
+
+def summarize_text(text):
+    response = requests.post(
+        HF_API_URL,
+        headers = headers,
+        json    = {
+            "inputs"    : text,
+            "parameters": {
+                "max_length": 130,
+                "min_length": 30
+            }
+        }
+    )
+    print("STATUS CODE :", response.status_code)
+    print("RESPONSE    :", response.text)
+
+    if response.status_code == 200:
+        return response.json()
+    else:
+        return {"error": f"API Error {response.status_code}: {response.text}"}
 
 @app.route("/")
 def index():
@@ -26,33 +50,18 @@ def summarize():
     if len(text.split()) < 30:
         return jsonify({"error": "Text too short! Please enter at least 30 words."})
 
-    # Limit input length
-    text = text[:1024]
+    text   = text[:1024]
+    result = summarize_text(text)
 
-    # Tokenize
-    inputs = tokenizer(
-        text,
-        return_tensors = "pt",
-        max_length     = 512,
-        truncation     = True
-    )
+    print("RESULT:", result)
 
-    # Generate summary
-    summary_ids = model.generate(
-        inputs["input_ids"],
-        max_length     = 130,
-        min_length     = 30,
-        num_beams      = 4,
-        early_stopping = True
-    )
+    if isinstance(result, list):
+        summary = result[0]["summary_text"]
+    elif isinstance(result, dict) and "error" in result:
+        return jsonify({"error": result["error"]})
+    else:
+        return jsonify({"error": "Unexpected response from API"})
 
-    # Decode summary
-    summary = tokenizer.decode(
-        summary_ids[0],
-        skip_special_tokens = True
-    )
-
-    # Calculate stats
     original_words = len(text.split())
     summary_words  = len(summary.split())
     reduction      = round((1 - summary_words/original_words) * 100)
